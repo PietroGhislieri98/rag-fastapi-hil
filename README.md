@@ -14,7 +14,7 @@ API RAG con **human-in-the-loop** (interrupt/resume) basata su **FastAPI**, **La
 
 * Ubuntu/Debian recenti
 * **Docker Engine** + **Docker Compose v2**
-* **Python 3.11+** (solo se vuoi avviare l’API in locale, non in container)
+* **Python 3+** (solo se vuoi avviare l’API in locale, non in container)
 * ~8–12 GB RAM consigliati (per modelli LLM locali)
 * Porte libere: `5432` (Postgres), `8000` (Chroma), `11434` (Ollama), `9000` (API)
 
@@ -36,7 +36,7 @@ sudo usermod -aG docker $USER
 
 ---
 
-### 1.3 Installazione Python 3.11 (opzionale, per avvio locale)
+### 1.3 Installazione Python 3 (opzionale, per avvio locale)
 
 ```bash
 sudo apt-get update
@@ -46,7 +46,7 @@ sudo apt-get install -y python3 python3-venv python3-pip
 Creazione venv (quando servirà):
 
 ```bash
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 ```
@@ -78,7 +78,7 @@ docker run -d --name chroma --restart unless-stopped \
   -v /srv/chroma:/chroma/chroma \
   -e IS_PERSISTENT=TRUE \
   -e ANONYMIZED_TELEMETRY=FALSE \
-  chromadb/chroma:0.6.3
+  chromadb/chroma
 
 # health check
 curl http://localhost:8000/api/v2/heartbeat
@@ -93,7 +93,7 @@ docker run -d --name pg-rag --restart unless-stopped \
   -e POSTGRES_USER=rag \
   -e POSTGRES_DB=rag_db \
   -v /srv/pgdata:/var/lib/postgresql/data \
-  postgres:16
+  postgres
 ```
 
 ---
@@ -194,7 +194,7 @@ ollama pull nomic-embed-text:latest
 ollama pull mistral:7b-instruct
 
 # attiva venv e avvia FastAPI
-python3.11 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -U pip && pip install -r requirements.txt
 
 uvicorn server:app --host 0.0.0.0 --port 9000 --reload
