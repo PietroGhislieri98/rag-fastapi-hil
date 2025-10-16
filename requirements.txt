@@ -1,7 +1,7 @@
 fastapi==0.115.9
 uvicorn[standard]==0.37.0
 
-# Chroma client (richiede onnxruntime lato x86_64)
+# Chroma client 
 chromadb>=1.0.0
 
 # LangChain stack

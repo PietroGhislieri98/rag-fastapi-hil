@@ -15,6 +15,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.postgres import PostgresSaver
+from contextlib import ExitStack
 
 # --------- Env ---------
 OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
@@ -145,8 +146,9 @@ def generate_node(s: AState) -> AState:
     return {"answer": msg.content}
 
 # Checkpointer Postgres
-PG = PostgresSaver.from_conn_string(PG_DSN)
-PG.setup()
+stack = ExitStack()
+PG = stack.enter_context(PostgresSaver.from_conn_string(PG_DSN))
+PG.setup()  
 
 sg = StateGraph(AState)
 sg.add_node("retrieve", retrieve_node)
