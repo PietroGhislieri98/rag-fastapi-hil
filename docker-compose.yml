@@ -37,7 +37,20 @@ services:
       - chroma
       - ollama
     ports: ["${API_PORT:-9000}:9000"]
+    # monta i sorgenti locali dentro il container
+    volumes:
+      - ./:/app
+    command: >
+      uvicorn server:app
+      --host 0.0.0.0
+      --port 9000
+      --reload
+      --reload-dir /app
+    environment:
+      # utile su alcuni FS (NFS/WSL/virt) per forzare il polling
+      WATCHFILES_FORCE_POLLING: "true"
 
+      
 volumes:
   pgdata:
   chroma:

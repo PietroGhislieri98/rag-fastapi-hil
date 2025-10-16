@@ -15,7 +15,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.postgres import PostgresSaver
-from contextlib import ExitStack
+from contextlib import asynccontextmanager
 
 # --------- Env ---------
 OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
@@ -38,6 +38,24 @@ Contesto:
 
 Risposta:"""
 )
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # apre la connessione al checkpointer e la mantiene finché l’app è viva
+    with PostgresSaver.from_conn_string(PG_DSN) as pg:
+        pg.setup()  # crea le tabelle se mancano
+        graph = sg.compile(checkpointer=pg)
+        # mettiamo tutto nello state dell’app
+        app.state.pg = pg
+        app.state.graph = graph
+        yield
+    # uscire dal 'with' chiude correttamente la connessione a shutdown
+
+app = FastAPI(
+    title="RAG API (FastAPI + LangGraph + Chroma + Ollama)",
+    lifespan=lifespan
+)
+
 
 app = FastAPI(title="RAG API (FastAPI + LangGraph + Chroma + Ollama)")
 
@@ -85,6 +103,18 @@ def health():
         raise HTTPException(503, f"Ollama non raggiungibile: {e}")
     return {"chroma": hb, "ollama": "ok"}
 
+
+@app.on_event("startup")
+def _startup():
+    app.state.pg_cm = PostgresSaver.from_conn_string(PG_DSN)
+    app.state.pg = app.state.pg_cm.__enter__()
+    app.state.pg.setup()
+    app.state.graph = sg.compile(checkpointer=app.state.pg)
+
+@app.on_event("shutdown")
+def _shutdown():
+    app.state.pg_cm.__exit__(None, None, None)
+    
 # --------- /ingest ---------
 @app.post("/ingest")
 def ingest(req: IngestRequest):
@@ -145,10 +175,6 @@ def generate_node(s: AState) -> AState:
     msg = llm.invoke(prompt)
     return {"answer": msg.content}
 
-# Checkpointer Postgres
-stack = ExitStack()
-PG = stack.enter_context(PostgresSaver.from_conn_string(PG_DSN))
-PG.setup()  
 
 sg = StateGraph(AState)
 sg.add_node("retrieve", retrieve_node)
@@ -156,24 +182,34 @@ sg.add_node("context", context_node)
 sg.add_node("human",   human_node)
 sg.add_node("generate", generate_node)
 sg.add_edge(START, "retrieve"); sg.add_edge("retrieve","context")
-sg.add_edge("context","human"); sg.add_edge("human","generate"); sg.add_edge("generate", END)
-GRAPH = sg.compile(checkpointer=PG)
+sg.add_edge("context","human"); sg.add_edge("human","generate"); 
+sg.add_edge("generate", END)
+
 
 # --------- /ask/start ---------
+def _graph():
+    g = getattr(app.state, "graph", None)
+    if g is None:
+        raise HTTPException(503, "Graph non inizializzato")
+    return g
+
 @app.post("/ask/start")
 def ask_start(req: AskStartRequest):
     tid = req.thread_id or uuid.uuid4().hex
-    out = GRAPH.invoke({"question": req.question, "topk": req.topk},
-                       config={"configurable": {"thread_id": tid}})
+    out = _graph().invoke(
+        {"question": req.question, "topk": req.topk},
+        config={"configurable": {"thread_id": tid}}
+    )
     if isinstance(out, dict) and "__interrupt__" in out:
         return {"thread_id": tid, "interrupt": out["__interrupt__"]}
     return {"thread_id": tid, "answer": out["answer"]}
 
-# --------- /ask/resume ---------
 @app.post("/ask/resume")
 def ask_resume(req: AskResumeRequest):
-    out = GRAPH.invoke(Command(resume=req.decision),
-                       config={"configurable": {"thread_id": req.thread_id}})
+    out = _graph().invoke(
+        Command(resume=req.decision),
+        config={"configurable": {"thread_id": req.thread_id}}
+    )
     if isinstance(out, dict) and "__interrupt__" in out:
         return {"thread_id": req.thread_id, "interrupt": out["__interrupt__"]}
     return {"thread_id": req.thread_id, "answer": out["answer"]}
