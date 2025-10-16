@@ -1,0 +1,21 @@
+fastapi==0.115.9
+uvicorn[standard]==0.37.0
+
+# Chroma client (richiede onnxruntime lato x86_64)
+chromadb>=1.0.0
+
+# LangChain stack
+langchain
+langchain-ollama
+langchain-chroma
+langchain-text-splitters
+
+# LangGraph + checkpoint Postgres
+langgraph==0.6.10
+langgraph-checkpoint==2.1.2
+langgraph-checkpoint-postgres==2.0.25
+
+# Altre dipendenze
+pydantic==2.9.2
+python-dotenv==1.0.1
+psycopg[binary]==3.2.10

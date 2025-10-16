@@ -1,0 +1,44 @@
+services:
+  pg-rag:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ragpass
+      POSTGRES_USER: rag
+      POSTGRES_DB: rag_db
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  chroma:
+    image: chromadb/chroma:1.0.0
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports: ["8000:8000"]
+    volumes:
+      - chroma:/chroma/chroma
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports: ["11434:11434"]
+    volumes:
+      - ollama:/root/.ollama
+
+  rag-api:
+    build: .
+    platform: linux/amd64   # <— chiave per risolvere onnx/chromadb
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - pg-rag
+      - chroma
+      - ollama
+    ports: ["${API_PORT:-9000}:9000"]
+
+volumes:
+  pgdata:
+  chroma:
+  ollama:
