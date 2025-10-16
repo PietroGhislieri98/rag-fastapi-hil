@@ -40,7 +40,7 @@ sudo usermod -aG docker $USER
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3.11 python3.11-venv python3-pip
+sudo apt-get install -y python3 python3-venv python3-pip
 ```
 
 Creazione venv (quando servirà):
